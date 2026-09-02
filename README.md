@@ -143,7 +143,7 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `updateTransaction(id, updates)` | `UpdateTransactionResponse` | Update transaction |
 | `updateRecurringMerchant(params)` | `UpdateRecurringMerchantResponse` | Correct a merchant's recurring schedule |
 | `createTransactionRule(input)` | `TransactionRule` | Create a rule and return its persisted ID |
-| `updateTransactionRule(id, updates)` | `TransactionRule` | Partially update a rule without clearing omitted fields |
+| `updateTransactionRule(id, updates)` | `TransactionRule` | Partially update a rule; use explicit `null` to clear a field |
 | `deleteTransactionRule(id)` | `boolean` | Delete a transaction rule |
 | `deleteTransaction(id)` | `boolean` | Delete transaction |
 | `updateTransactionSplits(id, splits)` | `UpdateTransactionSplitResponse` | Manage splits |

@@ -740,5 +740,35 @@ describe("MonarchMoney", () => {
       });
       expect(updated.setCategoryAction).toEqual({ id: "category-new", name: "New" });
     });
+
+    it("sends explicit nulls to clear rule fields", async () => {
+      const current = {
+        id: "rule-1",
+        order: 1,
+        merchantNameCriteria: [{ operator: "contains", value: "coffee" }],
+        setMerchantAction: { id: "merchant-1", name: "Coffee Shop" },
+      };
+      const bodies: Array<Record<string, unknown>> = [];
+      const mockFetch = vi.fn().mockImplementation((_url, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        bodies.push(body);
+        const data = body.operationName === "GetTransactionRules"
+          ? { transactionRules: [current] }
+          : { updateTransactionRuleV2: { errors: [] } };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data }),
+        } as unknown as Response);
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      await new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } })
+        .updateTransactionRule("rule-1", { setMerchantAction: null });
+
+      const mutation = bodies.find(
+        (body) => body.operationName === "Common_UpdateTransactionRuleMutationV2"
+      ) as { variables: { input: Record<string, unknown> } };
+      expect(mutation.variables.input.setMerchantAction).toBeNull();
+    });
   });
 });
