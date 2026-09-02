@@ -477,7 +477,7 @@ export const DELETE_TRANSACTION_TAG = `
 `;
 
 export const SET_TRANSACTION_TAGS = `
-  mutation Web_SetTransactionTags($input: SetTransactionTagsMutationInput!) {
+  mutation Web_SetTransactionTags($input: SetTransactionTagsInput!) {
     setTransactionTags(input: $input) {
       transaction { id tags { id name __typename } __typename }
       errors { message __typename }

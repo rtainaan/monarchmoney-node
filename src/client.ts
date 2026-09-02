@@ -1192,7 +1192,7 @@ export class MonarchMoney {
     const result = await this.gqlCall<DeleteTransactionResponse>(
       "Common_DeleteTransactionMutation",
       queries.DELETE_TRANSACTION,
-      { input: { id: transactionId } }
+      { input: { transactionId } }
     );
     if (result.deleteTransaction.errors?.length) {
       throw new RequestFailedException(
@@ -1252,7 +1252,7 @@ export class MonarchMoney {
       queries.CREATE_CATEGORY,
       {
         input: {
-          groupId: params.groupId,
+          group: params.groupId,
           name: params.name,
           icon: params.icon ?? "\u2753",
           rolloverStartMonth:

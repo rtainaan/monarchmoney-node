@@ -552,6 +552,32 @@ describe("MonarchMoney", () => {
         variables: { tagId: "tag-1" },
         data: { deleteTransactionTag: { __typename: "DeleteTransactionTagPayload" } },
       },
+      {
+        call: (client: MonarchMoney) => client.createTransactionCategory({
+          groupId: "group-1",
+          name: "Category",
+        }),
+        operation: "Web_CreateCategory",
+        rootField: "createCategory",
+        variables: {
+          input: expect.objectContaining({ group: "group-1", name: "Category" }),
+        },
+        data: { createCategory: { category: { id: "category-1", name: "Category" }, errors: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.deleteTransaction("txn-1"),
+        operation: "Common_DeleteTransactionMutation",
+        rootField: "deleteTransaction",
+        variables: { input: { transactionId: "txn-1" } },
+        data: { deleteTransaction: { deleted: true, errors: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.setTransactionTags("txn-1", ["tag-1"]),
+        operation: "Web_SetTransactionTags",
+        rootField: "SetTransactionTagsInput!",
+        variables: { input: { transactionId: "txn-1", tagIds: ["tag-1"] } },
+        data: { setTransactionTags: { transaction: { id: "txn-1", tags: [] }, errors: [] } },
+      },
     ])("uses $operation", async ({ call, operation, rootField, variables, data }) => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
