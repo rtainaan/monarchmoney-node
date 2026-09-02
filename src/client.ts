@@ -30,6 +30,12 @@ import type {
   GetCashflowResponse,
   GetCashflowSummaryResponse,
   GetRecurringTransactionsResponse,
+  GetTransactionRulesResponse,
+  TransactionRule,
+  TransactionRuleInput,
+  RecurringMerchantUpdate,
+  UpdateRecurringMerchantResponse,
+  PayloadError,
   CreateManualAccountResponse,
   UpdateAccountResponse,
   DeleteAccountResponse,
@@ -57,6 +63,18 @@ const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_RETRY_BASE_DELAY_MS = 500;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RATE_LIMIT_RPS = 0; // disabled
+
+function stripGraphqlMetadata<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(stripGraphqlMetadata) as T;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== "__typename")
+        .map(([key, child]) => [key, stripGraphqlMetadata(child)])
+    ) as T;
+  }
+  return value;
+}
 
 export interface RetryOptions {
   /** Max retry attempts on 429/5xx errors. Default: `3`. Set to `0` to disable. */
@@ -93,6 +111,7 @@ export type TransactionFilterOptions = {
   isRecurring?: boolean;
   importedFromMint?: boolean;
   syncedFromInstitution?: boolean;
+  needsReview?: boolean;
 };
 
 export interface MonarchMoneyOptions {
@@ -807,6 +826,7 @@ export class MonarchMoney {
       isRecurring,
       importedFromMint,
       syncedFromInstitution,
+      needsReview,
     } = opts;
 
     if (Boolean(startDate) !== Boolean(endDate)) {
@@ -829,6 +849,7 @@ export class MonarchMoney {
     if (importedFromMint != null) filters.importedFromMint = importedFromMint;
     if (syncedFromInstitution != null)
       filters.syncedFromInstitution = syncedFromInstitution;
+    if (needsReview != null) filters.needsReview = needsReview;
     if (startDate && endDate) {
       filters.startDate = startDate;
       filters.endDate = endDate;
@@ -964,6 +985,14 @@ export class MonarchMoney {
         startDate: startDate ?? this._getStartOfCurrentMonth(),
         endDate: endDate ?? this._getEndOfCurrentMonth(),
       }
+    );
+  }
+
+  /** Lists the household's automatic transaction rules. */
+  async getTransactionRules(): Promise<GetTransactionRulesResponse> {
+    return this.gqlCall<GetTransactionRulesResponse>(
+      "GetTransactionRules",
+      queries.GET_TRANSACTION_RULES
     );
   }
 
@@ -1185,6 +1214,164 @@ export class MonarchMoney {
       queries.UPDATE_TRANSACTION,
       { input }
     );
+  }
+
+  /** Updates the recurring schedule associated with a merchant. */
+  async updateRecurringMerchant(
+    update: RecurringMerchantUpdate
+  ): Promise<UpdateRecurringMerchantResponse> {
+    const recurrence: Record<string, unknown> = {
+      isRecurring: update.isRecurring,
+    };
+    if (update.frequency != null) recurrence.frequency = update.frequency;
+    if (update.baseDate != null) recurrence.baseDate = update.baseDate;
+    if (update.amount != null) recurrence.amount = update.amount;
+    if (update.isActive != null) recurrence.isActive = update.isActive;
+    const result = await this.gqlCall<UpdateRecurringMerchantResponse>(
+      "Common_UpdateMerchant",
+      queries.UPDATE_RECURRING_MERCHANT,
+      { input: { merchantId: update.merchantId, name: update.name, recurrence } }
+    );
+    if (result.updateMerchant.errors?.length) {
+      throw new RequestFailedException(
+        JSON.stringify(result.updateMerchant.errors)
+      );
+    }
+    return result;
+  }
+
+  /** Creates an automatic transaction rule and returns its persisted definition. */
+  async createTransactionRule(
+    input: TransactionRuleInput
+  ): Promise<TransactionRule> {
+    const before = await this.getTransactionRules();
+    const result = await this.gqlCall<{
+      createTransactionRuleV2: { errors: PayloadError[] };
+    }>(
+      "Common_CreateTransactionRuleMutationV2",
+      queries.CREATE_TRANSACTION_RULE,
+      { input }
+    );
+    if (result.createTransactionRuleV2.errors?.length) {
+      throw new RequestFailedException(
+        JSON.stringify(result.createTransactionRuleV2.errors)
+      );
+    }
+    const previousIds = new Set(before.transactionRules.map((rule) => rule.id));
+    const after = await this.getTransactionRules();
+    const created = after.transactionRules.find((rule) => !previousIds.has(rule.id));
+    if (!created) {
+      throw new RequestFailedException(
+        "Monarch accepted the rule but its created ID could not be identified"
+      );
+    }
+    return created;
+  }
+
+  /** Updates only supplied rule fields while preserving Monarch's replace-style fields. */
+  async updateTransactionRule(
+    ruleId: string,
+    updates: TransactionRuleInput
+  ): Promise<TransactionRule> {
+    const current = (await this.getTransactionRules()).transactionRules.find(
+      (rule) => rule.id === ruleId
+    );
+    if (!current) {
+      throw new RequestFailedException(`Transaction rule ${ruleId} was not found`);
+    }
+    const input = {
+      ...this._transactionRuleInput(current),
+      ...stripGraphqlMetadata(updates),
+      id: ruleId,
+    };
+    const result = await this.gqlCall<{
+      updateTransactionRuleV2: { errors: PayloadError[] };
+    }>(
+      "Common_UpdateTransactionRuleMutationV2",
+      queries.UPDATE_TRANSACTION_RULE,
+      { input }
+    );
+    if (result.updateTransactionRuleV2.errors?.length) {
+      throw new RequestFailedException(
+        JSON.stringify(result.updateTransactionRuleV2.errors)
+      );
+    }
+    const updated = (await this.getTransactionRules()).transactionRules.find(
+      (rule) => rule.id === ruleId
+    );
+    if (!updated) {
+      throw new RequestFailedException(`Updated transaction rule ${ruleId} was not returned`);
+    }
+    return updated;
+  }
+
+  /** Deletes an automatic transaction rule. */
+  async deleteTransactionRule(ruleId: string): Promise<boolean> {
+    const result = await this.gqlCall<{
+      deleteTransactionRule: { deleted: boolean; errors: PayloadError[] };
+    }>("Common_DeleteTransactionRule", queries.DELETE_TRANSACTION_RULE, {
+      id: ruleId,
+    });
+    if (result.deleteTransactionRule.errors?.length) {
+      throw new RequestFailedException(
+        JSON.stringify(result.deleteTransactionRule.errors)
+      );
+    }
+    return true;
+  }
+
+  private _transactionRuleInput(rule: TransactionRule): TransactionRuleInput {
+    return stripGraphqlMetadata({
+      ...(rule.merchantCriteriaUseOriginalStatement != null
+        ? { merchantCriteriaUseOriginalStatement: rule.merchantCriteriaUseOriginalStatement }
+        : {}),
+      ...(rule.merchantCriteria ? { merchantCriteria: rule.merchantCriteria } : {}),
+      ...(rule.originalStatementCriteria
+        ? { originalStatementCriteria: rule.originalStatementCriteria }
+        : {}),
+      ...(rule.merchantNameCriteria ? { merchantNameCriteria: rule.merchantNameCriteria } : {}),
+      ...(rule.amountCriteria ? { amountCriteria: rule.amountCriteria } : {}),
+      ...(rule.categoryIds ? { categoryIds: rule.categoryIds } : {}),
+      ...(rule.accountIds ? { accountIds: rule.accountIds } : {}),
+      ...(rule.setMerchantAction
+        ? {
+            setMerchantAction:
+              typeof rule.setMerchantAction === "string"
+                ? rule.setMerchantAction
+                : rule.setMerchantAction.name,
+          }
+        : {}),
+      ...(rule.setCategoryAction
+        ? {
+            setCategoryAction:
+              typeof rule.setCategoryAction === "string"
+                ? rule.setCategoryAction
+                : rule.setCategoryAction.id,
+          }
+        : {}),
+      ...(rule.addTagsAction
+        ? {
+            addTagsAction: rule.addTagsAction.map((tag) =>
+              typeof tag === "string" ? tag : tag.id
+            ),
+          }
+        : {}),
+      ...(rule.linkGoalAction
+        ? {
+            linkGoalAction:
+              typeof rule.linkGoalAction === "string"
+                ? rule.linkGoalAction
+                : rule.linkGoalAction.id,
+          }
+        : {}),
+      ...(rule.reviewStatusAction ? { reviewStatusAction: rule.reviewStatusAction } : {}),
+      ...(rule.setHideFromReportsAction != null
+        ? { setHideFromReportsAction: rule.setHideFromReportsAction }
+        : {}),
+      ...(rule.splitTransactionsAction
+        ? { splitTransactionsAction: rule.splitTransactionsAction }
+        : {}),
+    });
   }
 
   /** Deletes a transaction by ID. */

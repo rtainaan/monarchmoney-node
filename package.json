@@ -1,6 +1,6 @@
 {
   "name": "@hakimelek/monarchmoney",
-  "version": "0.3.1-rtainaan.2",
+  "version": "0.3.1-rtainaan.3",
   "mcpName": "io.github.hakimelek/monarchmoney",
   "description": "Node.js/TypeScript API client for Monarch Money with built-in MCP server for AI agents. Unofficial; not affiliated with Monarch Money.",
   "type": "module",
