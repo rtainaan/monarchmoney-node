@@ -41,6 +41,7 @@ import type {
   DeleteCategoryResponse,
   CreateCategoryResponse,
   CreateTransactionTagResponse,
+  DeleteTransactionTagResponse,
   SetTransactionTagsResponse,
   UpdateTransactionSplitResponse,
   SetBudgetAmountResponse,
@@ -856,9 +857,9 @@ export class MonarchMoney {
     transactionId: string
   ): Promise<Record<string, unknown>> {
     return this.gqlCall(
-      "GetTransactionDetails",
+      "GetTransactionDrawer",
       queries.GET_TRANSACTION_DETAILS,
-      { id: transactionId }
+      { id: transactionId, redirectPosted: true }
     );
   }
 
@@ -867,7 +868,7 @@ export class MonarchMoney {
     transactionId: string
   ): Promise<Record<string, unknown>> {
     return this.gqlCall(
-      "GetTransactionSplits",
+      "TransactionSplitQuery",
       queries.GET_TRANSACTION_SPLITS,
       { id: transactionId }
     );
@@ -876,7 +877,7 @@ export class MonarchMoney {
   /** Gets all tags configured in the account. */
   async getTransactionTags(): Promise<GetTransactionTagsResponse> {
     return this.gqlCall<GetTransactionTagsResponse>(
-      "GetTransactionTags",
+      "GetHouseholdTransactionTags",
       queries.GET_TRANSACTION_TAGS
     );
   }
@@ -1272,6 +1273,17 @@ export class MonarchMoney {
       "Common_CreateTransactionTag",
       queries.CREATE_TRANSACTION_TAG,
       { input: { name, color } }
+    );
+  }
+
+  /** Deletes a transaction tag. */
+  async deleteTransactionTag(
+    tagId: string
+  ): Promise<DeleteTransactionTagResponse> {
+    return this.gqlCall<DeleteTransactionTagResponse>(
+      "Common_DeleteTransactionTag",
+      queries.DELETE_TRANSACTION_TAG,
+      { tagId }
     );
   }
 

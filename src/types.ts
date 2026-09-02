@@ -489,6 +489,10 @@ export interface CreateTransactionTagResponse {
   };
 }
 
+export interface DeleteTransactionTagResponse {
+  deleteTransactionTag: { __typename?: string } | null;
+}
+
 export interface SetTransactionTagsResponse {
   setTransactionTags: {
     transaction: { id: string; tags: TransactionTag[]; __typename?: string } | null;

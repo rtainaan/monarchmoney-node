@@ -517,4 +517,59 @@ describe("MonarchMoney", () => {
       expect(progressCalls[1]).toEqual({ completed: 2, total: 2 });
     });
   });
+
+  describe("current transaction GraphQL operations", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      {
+        call: (client: MonarchMoney) => client.getTransactionDetails("txn-1"),
+        operation: "GetTransactionDrawer",
+        rootField: "transaction: getTransaction",
+        variables: { id: "txn-1", redirectPosted: true },
+        data: { transaction: { id: "txn-1" } },
+      },
+      {
+        call: (client: MonarchMoney) => client.getTransactionSplits("txn-1"),
+        operation: "TransactionSplitQuery",
+        rootField: "transaction: getTransaction",
+        variables: { id: "txn-1" },
+        data: { transaction: { id: "txn-1", splitTransactions: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.getTransactionTags(),
+        operation: "GetHouseholdTransactionTags",
+        rootField: "tags: householdTransactionTags",
+        variables: {},
+        data: { tags: [] },
+      },
+      {
+        call: (client: MonarchMoney) => client.deleteTransactionTag("tag-1"),
+        operation: "Common_DeleteTransactionTag",
+        rootField: "deleteTransactionTag",
+        variables: { tagId: "tag-1" },
+        data: { deleteTransactionTag: { __typename: "DeleteTransactionTagPayload" } },
+      },
+    ])("uses $operation", async ({ call, operation, rootField, variables, data }) => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data }),
+      } as unknown as Response);
+      vi.stubGlobal("fetch", mockFetch);
+
+      await call(new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } }));
+
+      const request = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(String(request.body)) as {
+        operationName: string;
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(body.operationName).toBe(operation);
+      expect(body.query).toContain(rootField);
+      expect(body.variables).toEqual(variables);
+    });
+  });
 });

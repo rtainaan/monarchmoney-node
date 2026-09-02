@@ -248,26 +248,38 @@ export const GET_CATEGORY_GROUPS = `
 `;
 
 export const GET_TRANSACTION_DETAILS = `
-  query GetTransactionDetails($id: UUID!) {
-    transaction(id: $id) {
-      id amount pending date hideFromReports plaidName notes isRecurring
-      reviewStatus needsReview
+  query GetTransactionDrawer($id: UUID!, $redirectPosted: Boolean) {
+    transaction: getTransaction(id: $id, redirectPosted: $redirectPosted) {
+      id amount pending date originalDate hideFromReports plaidName notes isRecurring
+      needsReview reviewedAt hasSplitTransactions isSplitTransaction isManual
       category { id name __typename }
-      merchant { id name __typename }
-      account { id displayName __typename }
-      tags { id name color __typename }
+      goal { id __typename }
+      merchant { id name transactionCount logoUrl __typename }
+      account { id displayName logoUrl mask subtype { display __typename } __typename }
+      tags { id name color order __typename }
+      attachments {
+        id publicId extension sizeBytes filename originalAssetUrl __typename
+      }
+      splitTransactions {
+        id amount
+        merchant { id name __typename }
+        category { id name __typename }
+        __typename
+      }
       __typename
     }
   }
 `;
 
 export const GET_TRANSACTION_SPLITS = `
-  query GetTransactionSplits($id: UUID!) {
-    transaction(id: $id) {
-      id
+  query TransactionSplitQuery($id: UUID!) {
+    transaction: getTransaction(id: $id) {
+      id amount
+      category { id name __typename }
+      merchant { id name __typename }
       splitTransactions {
-        id amount
-        merchant { name __typename }
+        id amount notes
+        merchant { id name __typename }
         category { id name __typename }
         __typename
       }
@@ -277,8 +289,10 @@ export const GET_TRANSACTION_SPLITS = `
 `;
 
 export const GET_TRANSACTION_TAGS = `
-  query GetTransactionTags {
-    tags { id name color order transactionCount __typename }
+  query GetHouseholdTransactionTags($search: String, $limit: Int, $bulkParams: BulkTransactionDataParams) {
+    tags: householdTransactionTags(search: $search, limit: $limit, bulkParams: $bulkParams) {
+      id name color order transactionCount __typename
+    }
   }
 `;
 
@@ -453,6 +467,12 @@ export const CREATE_TRANSACTION_TAG = `
       errors { message __typename }
       __typename
     }
+  }
+`;
+
+export const DELETE_TRANSACTION_TAG = `
+  mutation Common_DeleteTransactionTag($tagId: ID!) {
+    deleteTransactionTag(tagId: $tagId) { __typename }
   }
 `;
 

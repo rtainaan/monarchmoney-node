@@ -64,6 +64,7 @@ export type {
   CreateCategoryResponse,
   DeleteCategoryResponse,
   CreateTransactionTagResponse,
+  DeleteTransactionTagResponse,
   SetTransactionTagsResponse,
   UpdateTransactionSplitResponse,
   SetBudgetAmountResponse,
