@@ -248,26 +248,44 @@ export const GET_CATEGORY_GROUPS = `
 `;
 
 export const GET_TRANSACTION_DETAILS = `
-  query GetTransactionDetails($id: UUID!) {
-    transaction(id: $id) {
-      id amount pending date hideFromReports plaidName notes isRecurring
-      reviewStatus needsReview
+  query GetTransactionDrawer($id: UUID!, $redirectPosted: Boolean) {
+    transaction: getTransaction(id: $id, redirectPosted: $redirectPosted) {
+      id amount pending date originalDate hideFromReports plaidName notes isRecurring
+      needsReview reviewedAt hasSplitTransactions isSplitTransaction isManual
       category { id name __typename }
-      merchant { id name __typename }
-      account { id displayName __typename }
-      tags { id name color __typename }
+      goal { id __typename }
+      merchant {
+        id name transactionCount logoUrl
+        recurringTransactionStream {
+          id frequency amount baseDate isActive __typename
+        }
+        __typename
+      }
+      account { id displayName logoUrl mask subtype { display __typename } __typename }
+      tags { id name color order __typename }
+      attachments {
+        id publicId extension sizeBytes filename originalAssetUrl __typename
+      }
+      splitTransactions {
+        id amount
+        merchant { id name __typename }
+        category { id name __typename }
+        __typename
+      }
       __typename
     }
   }
 `;
 
 export const GET_TRANSACTION_SPLITS = `
-  query GetTransactionSplits($id: UUID!) {
-    transaction(id: $id) {
-      id
+  query TransactionSplitQuery($id: UUID!) {
+    transaction: getTransaction(id: $id) {
+      id amount
+      category { id name __typename }
+      merchant { id name __typename }
       splitTransactions {
-        id amount
-        merchant { name __typename }
+        id amount notes
+        merchant { id name __typename }
         category { id name __typename }
         __typename
       }
@@ -277,8 +295,10 @@ export const GET_TRANSACTION_SPLITS = `
 `;
 
 export const GET_TRANSACTION_TAGS = `
-  query GetTransactionTags {
-    tags { id name color order transactionCount __typename }
+  query GetHouseholdTransactionTags($search: String, $limit: Int, $bulkParams: BulkTransactionDataParams) {
+    tags: householdTransactionTags(search: $search, limit: $limit, bulkParams: $bulkParams) {
+      id name color order transactionCount __typename
+    }
   }
 `;
 
@@ -335,6 +355,40 @@ export const GET_RECURRING_TRANSACTIONS = `
       date isPast transactionId amount amountDiff
       category { id name __typename }
       account { id displayName logoUrl __typename }
+      __typename
+    }
+  }
+`;
+
+export const GET_TRANSACTION_RULES = `
+  query GetTransactionRules {
+    transactionRules {
+      id order merchantCriteriaUseOriginalStatement
+      merchantCriteria { operator value __typename }
+      originalStatementCriteria { operator value __typename }
+      merchantNameCriteria { operator value __typename }
+      amountCriteria {
+        operator isExpense value
+        valueRange { lower upper __typename }
+        __typename
+      }
+      categoryIds accountIds
+      categories { id name __typename }
+      accounts { id displayName __typename }
+      setMerchantAction { id name __typename }
+      setCategoryAction { id name __typename }
+      addTagsAction { id name color order __typename }
+      linkGoalAction { id name __typename }
+      reviewStatusAction setHideFromReportsAction
+      recentApplicationCount lastAppliedAt
+      splitTransactionsAction {
+        amountType
+        splitsInfo {
+          categoryId merchantName amount goalId tags hideFromReports reviewStatus
+          __typename
+        }
+        __typename
+      }
       __typename
     }
   }
@@ -456,8 +510,14 @@ export const CREATE_TRANSACTION_TAG = `
   }
 `;
 
+export const DELETE_TRANSACTION_TAG = `
+  mutation Common_DeleteTransactionTag($tagId: ID!) {
+    deleteTransactionTag(tagId: $tagId) { __typename }
+  }
+`;
+
 export const SET_TRANSACTION_TAGS = `
-  mutation Web_SetTransactionTags($input: SetTransactionTagsMutationInput!) {
+  mutation Web_SetTransactionTags($input: SetTransactionTagsInput!) {
     setTransactionTags(input: $input) {
       transaction { id tags { id name __typename } __typename }
       errors { message __typename }
@@ -490,6 +550,50 @@ export const UPDATE_BUDGET_ITEM = `
   mutation Common_UpdateBudgetItem($input: UpdateOrCreateBudgetItemMutationInput!) {
     updateOrCreateBudgetItem(input: $input) {
       budgetItem { id budgetAmount __typename }
+      __typename
+    }
+  }
+`;
+
+export const UPDATE_RECURRING_MERCHANT = `
+  mutation Common_UpdateMerchant($input: UpdateMerchantInput!) {
+    updateMerchant(input: $input) {
+      merchant {
+        id name
+        recurringTransactionStream {
+          id frequency amount baseDate isActive __typename
+        }
+        __typename
+      }
+      errors { fieldErrors { field messages __typename } message code __typename }
+      __typename
+    }
+  }
+`;
+
+export const CREATE_TRANSACTION_RULE = `
+  mutation Common_CreateTransactionRuleMutationV2($input: CreateTransactionRuleInput!) {
+    createTransactionRuleV2(input: $input) {
+      errors { fieldErrors { field messages __typename } message code __typename }
+      __typename
+    }
+  }
+`;
+
+export const UPDATE_TRANSACTION_RULE = `
+  mutation Common_UpdateTransactionRuleMutationV2($input: UpdateTransactionRuleInput!) {
+    updateTransactionRuleV2(input: $input) {
+      errors { fieldErrors { field messages __typename } message code __typename }
+      __typename
+    }
+  }
+`;
+
+export const DELETE_TRANSACTION_RULE = `
+  mutation Common_DeleteTransactionRule($id: ID!) {
+    deleteTransactionRule(id: $id) {
+      deleted
+      errors { fieldErrors { field messages __typename } message code __typename }
       __typename
     }
   }

@@ -127,6 +127,7 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `getCashflow(options?)` | `GetCashflowResponse` | Cashflow by category, group, merchant |
 | `getCashflowSummary(options?)` | `GetCashflowSummaryResponse` | Income, expense, savings, savings rate |
 | `getRecurringTransactions(start?, end?)` | `GetRecurringTransactionsResponse` | Upcoming recurring transactions |
+| `getTransactionRules()` | `GetTransactionRulesResponse` | Automatic rule criteria, actions, and application counts |
 | `isAccountsRefreshComplete(ids?)` | `boolean` | Check refresh status |
 
 ### Write Methods
@@ -140,6 +141,10 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `requestAccountsRefreshAndWait(opts?)` | `boolean` | Refresh and poll until done |
 | `createTransaction(params)` | `CreateTransactionResponse` | Create transaction |
 | `updateTransaction(id, updates)` | `UpdateTransactionResponse` | Update transaction |
+| `updateRecurringMerchant(params)` | `UpdateRecurringMerchantResponse` | Correct a merchant's recurring schedule |
+| `createTransactionRule(input)` | `TransactionRule` | Create a rule and return its persisted ID |
+| `updateTransactionRule(id, updates)` | `TransactionRule` | Partially update a rule without clearing omitted fields |
+| `deleteTransactionRule(id)` | `boolean` | Delete a transaction rule |
 | `deleteTransaction(id)` | `boolean` | Delete transaction |
 | `updateTransactionSplits(id, splits)` | `UpdateTransactionSplitResponse` | Manage splits |
 | `createTransactionCategory(params)` | `CreateCategoryResponse` | Create category |

@@ -517,4 +517,228 @@ describe("MonarchMoney", () => {
       expect(progressCalls[1]).toEqual({ completed: 2, total: 2 });
     });
   });
+
+  describe("current transaction GraphQL operations", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      {
+        call: (client: MonarchMoney) => client.getTransactionDetails("txn-1"),
+        operation: "GetTransactionDrawer",
+        rootField: "transaction: getTransaction",
+        variables: { id: "txn-1", redirectPosted: true },
+        data: { transaction: { id: "txn-1" } },
+      },
+      {
+        call: (client: MonarchMoney) => client.getTransactionSplits("txn-1"),
+        operation: "TransactionSplitQuery",
+        rootField: "transaction: getTransaction",
+        variables: { id: "txn-1" },
+        data: { transaction: { id: "txn-1", splitTransactions: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.getTransactionTags(),
+        operation: "GetHouseholdTransactionTags",
+        rootField: "tags: householdTransactionTags",
+        variables: {},
+        data: { tags: [] },
+      },
+      {
+        call: (client: MonarchMoney) => client.deleteTransactionTag("tag-1"),
+        operation: "Common_DeleteTransactionTag",
+        rootField: "deleteTransactionTag",
+        variables: { tagId: "tag-1" },
+        data: { deleteTransactionTag: { __typename: "DeleteTransactionTagPayload" } },
+      },
+      {
+        call: (client: MonarchMoney) => client.createTransactionCategory({
+          groupId: "group-1",
+          name: "Category",
+        }),
+        operation: "Web_CreateCategory",
+        rootField: "createCategory",
+        variables: {
+          input: expect.objectContaining({ group: "group-1", name: "Category" }),
+        },
+        data: { createCategory: { category: { id: "category-1", name: "Category" }, errors: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.deleteTransaction("txn-1"),
+        operation: "Common_DeleteTransactionMutation",
+        rootField: "deleteTransaction",
+        variables: { input: { transactionId: "txn-1" } },
+        data: { deleteTransaction: { deleted: true, errors: [] } },
+      },
+      {
+        call: (client: MonarchMoney) => client.setTransactionTags("txn-1", ["tag-1"]),
+        operation: "Web_SetTransactionTags",
+        rootField: "SetTransactionTagsInput!",
+        variables: { input: { transactionId: "txn-1", tagIds: ["tag-1"] } },
+        data: { setTransactionTags: { transaction: { id: "txn-1", tags: [] }, errors: [] } },
+      },
+    ])("uses $operation", async ({ call, operation, rootField, variables, data }) => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ data }),
+      } as unknown as Response);
+      vi.stubGlobal("fetch", mockFetch);
+
+      await call(new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } }));
+
+      const request = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(String(request.body)) as {
+        operationName: string;
+        query: string;
+        variables: Record<string, unknown>;
+      };
+      expect(body.operationName).toBe(operation);
+      expect(body.query).toContain(rootField);
+      expect(body.variables).toEqual(variables);
+    });
+  });
+
+  describe("agent workflow operations", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("passes the review-state filter to Monarch", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          data: { allTransactions: { totalCount: 0, results: [] }, transactionRules: [] },
+        }),
+      } as unknown as Response);
+      vi.stubGlobal("fetch", mockFetch);
+
+      await new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } })
+        .getTransactions({ needsReview: true });
+
+      const request = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(String(request.body));
+      expect(body.variables.filters.needsReview).toBe(true);
+    });
+
+    it("updates one merchant recurrence with the exact supplied schedule", async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({
+          data: {
+            updateMerchant: {
+              merchant: { id: "merchant-1", name: "Rent", recurringTransactionStream: null },
+              errors: [],
+            },
+          },
+        }),
+      } as unknown as Response);
+      vi.stubGlobal("fetch", mockFetch);
+
+      await new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } })
+        .updateRecurringMerchant({
+          merchantId: "merchant-1",
+          name: "Rent",
+          isRecurring: true,
+          frequency: "monthly",
+          baseDate: "2026-09-01",
+          amount: -2500,
+          isActive: true,
+        });
+
+      const request = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(String(request.body));
+      expect(body.operationName).toBe("Common_UpdateMerchant");
+      expect(body.variables).toEqual({
+        input: {
+          merchantId: "merchant-1",
+          name: "Rent",
+          recurrence: {
+            isRecurring: true,
+            frequency: "monthly",
+            baseDate: "2026-09-01",
+            amount: -2500,
+            isActive: true,
+          },
+        },
+      });
+    });
+
+    it("creates a rule and identifies the new persisted ID", async () => {
+      const reads = [
+        { transactionRules: [{ id: "rule-old", order: 1 }] },
+        {
+          transactionRules: [
+            { id: "rule-old", order: 1 },
+            {
+              id: "rule-new",
+              order: 2,
+              merchantNameCriteria: [{ operator: "contains", value: "coffee" }],
+              setCategoryAction: { id: "category-1", name: "Coffee" },
+            },
+          ],
+        },
+      ];
+      const mockFetch = vi.fn().mockImplementation((_url, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        const data = body.operationName === "GetTransactionRules"
+          ? reads.shift()
+          : { createTransactionRuleV2: { errors: [] } };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data }),
+        } as unknown as Response);
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const created = await new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } })
+        .createTransactionRule({
+          merchantNameCriteria: [{ operator: "contains", value: "coffee" }],
+          setCategoryAction: "category-1",
+        });
+
+      expect(created.id).toBe("rule-new");
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it("preserves existing rule fields during a partial update", async () => {
+      const current = {
+        id: "rule-1",
+        order: 1,
+        merchantNameCriteria: [
+          { operator: "contains", value: "coffee", __typename: "MerchantCriterion" },
+        ],
+        setCategoryAction: { id: "category-old", name: "Old" },
+        addTagsAction: [{ id: "tag-1", name: "Morning" }],
+      };
+      let reads = 0;
+      const bodies: Array<Record<string, unknown>> = [];
+      const mockFetch = vi.fn().mockImplementation((_url, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        bodies.push(body);
+        const data = body.operationName === "GetTransactionRules"
+          ? { transactionRules: [reads++ === 0 ? current : { ...current, setCategoryAction: { id: "category-new", name: "New" } }] }
+          : { updateTransactionRuleV2: { errors: [] } };
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data }),
+        } as unknown as Response);
+      });
+      vi.stubGlobal("fetch", mockFetch);
+
+      const updated = await new MonarchMoney({ token: "test-token", retry: { maxRetries: 0 } })
+        .updateTransactionRule("rule-1", { setCategoryAction: "category-new" });
+
+      const mutation = bodies.find(
+        (body) => body.operationName === "Common_UpdateTransactionRuleMutationV2"
+      ) as { variables: { input: Record<string, unknown> } };
+      expect(mutation.variables.input).toEqual({
+        id: "rule-1",
+        merchantNameCriteria: [{ operator: "contains", value: "coffee" }],
+        setCategoryAction: "category-new",
+        addTagsAction: ["tag-1"],
+      });
+      expect(updated.setCategoryAction).toEqual({ id: "category-new", name: "New" });
+    });
+  });
 });

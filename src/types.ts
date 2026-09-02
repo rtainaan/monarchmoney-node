@@ -351,6 +351,97 @@ export interface GetRecurringTransactionsResponse {
   recurringTransactionItems: RecurringTransactionItem[];
 }
 
+export interface RuleCriterion {
+  operator: "contains" | "eq";
+  value: string;
+}
+
+export interface RuleAmountCriterion {
+  operator: string;
+  isExpense?: boolean;
+  value?: number;
+  valueRange?: { lower?: number; upper?: number };
+}
+
+export interface RuleSplit {
+  categoryId?: string;
+  merchantName?: string;
+  amount?: number;
+  goalId?: string;
+  tags?: string[];
+  hideFromReports?: boolean;
+  reviewStatus?: string;
+}
+
+export interface RuleSplitAction {
+  amountType: "ABSOLUTE" | "PERCENTAGE";
+  splitsInfo: RuleSplit[];
+}
+
+export interface TransactionRuleInput {
+  merchantCriteriaUseOriginalStatement?: boolean;
+  merchantCriteria?: RuleCriterion[];
+  originalStatementCriteria?: RuleCriterion[];
+  merchantNameCriteria?: RuleCriterion[];
+  amountCriteria?: RuleAmountCriterion;
+  categoryIds?: string[];
+  accountIds?: string[];
+  setMerchantAction?: string;
+  setCategoryAction?: string;
+  addTagsAction?: string[];
+  linkGoalAction?: string;
+  reviewStatusAction?: string;
+  setHideFromReportsAction?: boolean;
+  splitTransactionsAction?: RuleSplitAction;
+  applyToExistingTransactions?: boolean;
+}
+
+export interface TransactionRule
+  extends Omit<
+    TransactionRuleInput,
+    "setMerchantAction" | "setCategoryAction" | "addTagsAction" | "linkGoalAction"
+  > {
+  id: string;
+  order: number;
+  categories?: Array<{ id: string; name: string }>;
+  accounts?: Array<{ id: string; displayName: string }>;
+  setMerchantAction?: string | Merchant;
+  setCategoryAction?: string | TransactionCategory;
+  addTagsAction?: Array<string | TransactionTag>;
+  linkGoalAction?: string | { id: string; name: string };
+  recentApplicationCount?: number;
+  lastAppliedAt?: string | null;
+}
+
+export interface GetTransactionRulesResponse {
+  transactionRules: TransactionRule[];
+}
+
+export interface RecurringMerchantUpdate {
+  merchantId: string;
+  name: string;
+  isRecurring: boolean;
+  frequency?: string;
+  baseDate?: string;
+  amount?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateRecurringMerchantResponse {
+  updateMerchant: {
+    merchant: (Merchant & {
+      recurringTransactionStream: {
+        id: string;
+        frequency: string;
+        amount: number;
+        baseDate: string;
+        isActive: boolean;
+      } | null;
+    }) | null;
+    errors: PayloadError[];
+  };
+}
+
 export interface GetBudgetsResponse {
   budgetSystem: string;
   budgetData: Record<string, unknown>;
@@ -487,6 +578,10 @@ export interface CreateTransactionTagResponse {
     errors: { message: string; __typename?: string }[];
     __typename?: string;
   };
+}
+
+export interface DeleteTransactionTagResponse {
+  deleteTransactionTag: { __typename?: string } | null;
 }
 
 export interface SetTransactionTagsResponse {
