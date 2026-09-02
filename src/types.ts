@@ -396,6 +396,10 @@ export interface TransactionRuleInput {
   applyToExistingTransactions?: boolean;
 }
 
+export type TransactionRuleUpdate = {
+  [Key in keyof TransactionRuleInput]?: TransactionRuleInput[Key] | null;
+};
+
 export interface TransactionRule
   extends Omit<
     TransactionRuleInput,

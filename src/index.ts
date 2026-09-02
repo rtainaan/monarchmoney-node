@@ -42,6 +42,7 @@ export type {
   RuleSplit,
   RuleSplitAction,
   TransactionRuleInput,
+  TransactionRuleUpdate,
   TransactionRule,
   RecurringMerchantUpdate,
   PayloadError,

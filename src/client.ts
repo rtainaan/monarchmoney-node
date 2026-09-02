@@ -33,6 +33,7 @@ import type {
   GetTransactionRulesResponse,
   TransactionRule,
   TransactionRuleInput,
+  TransactionRuleUpdate,
   RecurringMerchantUpdate,
   UpdateRecurringMerchantResponse,
   PayloadError,
@@ -1271,7 +1272,7 @@ export class MonarchMoney {
   /** Updates only supplied rule fields while preserving Monarch's replace-style fields. */
   async updateTransactionRule(
     ruleId: string,
-    updates: TransactionRuleInput
+    updates: TransactionRuleUpdate
   ): Promise<TransactionRule> {
     const current = (await this.getTransactionRules()).transactionRules.find(
       (rule) => rule.id === ruleId
