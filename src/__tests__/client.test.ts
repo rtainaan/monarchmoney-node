@@ -171,6 +171,30 @@ describe("MonarchMoney", () => {
       expect(result.householdPreferences).toBeDefined();
       expect(globalThis.fetch).toHaveBeenCalledTimes(1);
     });
+
+    it("reads available balance without changing display settings or using unsupported fallbacks", async () => {
+      vi.mocked(globalThis.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: {
+          accounts: [
+            { id: "supported", currentBalance: 1000, displayBalance: 1000,
+              useAvailableBalance: false, canUseAvailableBalance: true, availableBalance: 800 },
+            { id: "unsupported", canUseAvailableBalance: false, availableBalance: 1000 },
+            { id: "unknown", availableBalance: 1000 },
+            { id: "missing", canUseAvailableBalance: true, availableBalance: null },
+            { id: "zero", canUseAvailableBalance: true, availableBalance: 0 },
+          ],
+        } }),
+      } as Response);
+      const result = await new MonarchMoney({ token: "test-token" }).getAccounts();
+      expect(result.accounts.map(a => a.availableBalance)).toEqual([800, null, null, null, 0]);
+      expect(result.accounts[0].useAvailableBalance).toBe(false);
+      expect(result.accounts[0].currentBalance).toBe(1000);
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+      const request = JSON.parse(vi.mocked(globalThis.fetch).mock.calls[0][1]!.body as string);
+      expect(request.query).toContain("query GetAccounts");
+      expect(request.query).toContain("availableBalance: displayBalancePreview(useAvailableBalance: true, invertSyncedBalance: false)");
+    });
   });
 
   describe("getAccounts (mocked fetch GraphQL errors)", () => {

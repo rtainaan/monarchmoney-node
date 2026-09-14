@@ -13,6 +13,9 @@ export const GET_ACCOUNTS = `
       displayLastUpdatedAt
       currentBalance
       displayBalance
+      useAvailableBalance
+      canUseAvailableBalance
+      availableBalance: displayBalancePreview(useAvailableBalance: true, invertSyncedBalance: false)
       includeInNetWorth
       hideFromList
       hideTransactionsFromReports

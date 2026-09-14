@@ -47,6 +47,12 @@ export interface Account {
   displayLastUpdatedAt: string | null;
   currentBalance: number;
   displayBalance: number;
+  useAvailableBalance: boolean | null;
+  canUseAvailableBalance: boolean;
+  /** Monarch's available-balance preview, without display sign inversion.
+   * Null when the provider does not support available balance or has no value.
+   * Does not change the account's display setting or prove bank freshness. */
+  availableBalance: number | null;
   includeInNetWorth: boolean;
   hideFromList: boolean;
   hideTransactionsFromReports: boolean;

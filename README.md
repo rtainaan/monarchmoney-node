@@ -105,7 +105,7 @@ All methods return **typed responses**. Hover over any method in your editor for
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `getAccounts()` | `GetAccountsResponse` | All linked accounts |
+| `getAccounts()` | `GetAccountsResponse` | All linked accounts, including supported available balances |
 | `getAccountTypeOptions()` | `GetAccountTypeOptionsResponse` | Available account types/subtypes |
 | `getRecentAccountBalances(startDate?)` | `GetRecentAccountBalancesResponse` | Daily balances (default: last 31 days) |
 | `getAccountSnapshotsByType(startDate, timeframe)` | `GetSnapshotsByAccountTypeResponse` | Snapshots by type (`"year"` / `"month"`) |
@@ -154,6 +154,13 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `setTransactionTags(txId, tagIds)` | `SetTransactionTagsResponse` | Set tags on transaction |
 | `setBudgetAmount(params)` | `SetBudgetAmountResponse` | Set/clear budget |
 | `uploadAccountBalanceHistory(id, csv)` | `void` | Upload balance history CSV |
+
+`getAccounts()` reads `canUseAvailableBalance`, `useAvailableBalance`, and
+`availableBalance` in the same query. The available value uses Monarch's
+`displayBalancePreview(useAvailableBalance: true, invertSyncedBalance: false)`;
+it does not change the account's display preference. Unsupported accounts or
+missing values return null, never a current-balance fallback. This is Monarch's
+reported available balance, not proof of newer data at the bank.
 
 ## Error Handling
 
