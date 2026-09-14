@@ -578,7 +578,17 @@ export class MonarchMoney {
 
   /** Gets all accounts linked to Monarch Money. */
   async getAccounts(): Promise<GetAccountsResponse> {
-    return this.gqlCall<GetAccountsResponse>("GetAccounts", queries.GET_ACCOUNTS);
+    const result = await this.gqlCall<GetAccountsResponse>("GetAccounts", queries.GET_ACCOUNTS);
+    // Monarch's preview can fall back to current balance for unsupported accounts.
+    // Never label that fallback as available balance.
+    return {
+      ...result,
+      accounts: result.accounts.map((account) => ({
+        ...account,
+        availableBalance: account.canUseAvailableBalance === true
+          ? account.availableBalance ?? null : null,
+      })),
+    };
   }
 
   /** Gets all available account types and their subtypes. */
