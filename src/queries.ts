@@ -4,6 +4,7 @@ export const GET_ACCOUNTS = `
       id
       displayName
       syncDisabled
+      canBeForceRefreshed
       deactivatedAt
       isHidden
       isAsset
@@ -435,9 +436,9 @@ export const DELETE_ACCOUNT = `
   }
 `;
 
-export const FORCE_REFRESH_ACCOUNTS = `
-  mutation Common_ForceRefreshAccountsMutation($input: ForceRefreshAccountsInput!) {
-    forceRefreshAccounts(input: $input) {
+export const FORCE_REFRESH_ACCOUNT = `
+  mutation Common_ForceRefreshAccountMutation($input: ForceRefreshAccountInput!) {
+    forceRefreshAccount(input: $input) {
       success
       errors { fieldErrors { field messages __typename } message code __typename }
       __typename

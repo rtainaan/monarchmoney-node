@@ -485,16 +485,16 @@ describe("MonarchMoney", () => {
             }),
           } as unknown as Response);
         }
-        if (callCount === 2) {
-          // requestAccountsRefresh (ForceRefreshMutation)
+        if (callCount === 2 || callCount === 3) {
+          // One current refresh mutation per selected account
           return Promise.resolve({
             ok: true,
             json: () => Promise.resolve({
-              data: { forceRefreshAccounts: { success: true, errors: [] } },
+              data: { forceRefreshAccount: { success: true, errors: null } },
             }),
           } as unknown as Response);
         }
-        if (callCount === 3) {
+        if (callCount === 4) {
           // first poll — a1 done, a2 still syncing
           return Promise.resolve({
             ok: true,

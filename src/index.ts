@@ -4,6 +4,7 @@ export type {
   RetryOptions,
   RateLimitOptions,
   RefreshProgress,
+  AccountRefreshOptions,
   TransactionFilterOptions,
 } from "./client.js";
 export {
@@ -79,5 +80,6 @@ export type {
   UpdateTransactionSplitResponse,
   SetBudgetAmountResponse,
   ForceRefreshResponse,
+  ForceRefreshAccountResponse,
   RefreshStatusAccount,
 } from "./types.js";
