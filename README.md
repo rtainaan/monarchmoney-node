@@ -128,6 +128,7 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `getCashflowSummary(options?)` | `GetCashflowSummaryResponse` | Income, expense, savings, savings rate |
 | `getRecurringTransactions(start?, end?)` | `GetRecurringTransactionsResponse` | Upcoming recurring transactions |
 | `getTransactionRules()` | `GetTransactionRulesResponse` | Automatic rule criteria, actions, and application counts |
+| `waitForAccountsRefresh(opts?)` | `boolean` | Wait for an existing sync without another refresh request |
 | `isAccountsRefreshComplete(ids?)` | `boolean` | Check refresh status |
 
 ### Write Methods
@@ -137,6 +138,7 @@ All methods return **typed responses**. Hover over any method in your editor for
 | `createManualAccount(params)` | `CreateManualAccountResponse` | Create manual account |
 | `updateAccount(id, updates)` | `UpdateAccountResponse` | Update account settings/balance |
 | `deleteAccount(id)` | `DeleteAccountResponse` | Delete account |
+| `requestAccountRefresh(id)` | `boolean` | Request one account refresh using the current Monarch API |
 | `requestAccountsRefresh(ids)` | `boolean` | Start refresh (non-blocking) |
 | `requestAccountsRefreshAndWait(opts?)` | `boolean` | Refresh and poll until done |
 | `createTransaction(params)` | `CreateTransactionResponse` | Create transaction |

@@ -38,6 +38,7 @@ export interface Account {
   id: string;
   displayName: string;
   syncDisabled: boolean;
+  canBeForceRefreshed: boolean;
   deactivatedAt: string | null;
   isHidden: boolean;
   isAsset: boolean;
@@ -618,6 +619,14 @@ export interface UpdateTransactionSplitResponse {
 export interface SetBudgetAmountResponse {
   updateOrCreateBudgetItem: {
     budgetItem: { id: string; budgetAmount: number; __typename?: string } | null;
+    __typename?: string;
+  };
+}
+
+export interface ForceRefreshAccountResponse {
+  forceRefreshAccount: {
+    success: boolean;
+    errors: PayloadError | null;
     __typename?: string;
   };
 }

@@ -40,7 +40,7 @@ import type {
   CreateManualAccountResponse,
   UpdateAccountResponse,
   DeleteAccountResponse,
-  ForceRefreshResponse,
+  ForceRefreshAccountResponse,
   RefreshStatusAccount,
   CreateTransactionResponse,
   UpdateTransactionResponse,
@@ -96,6 +96,16 @@ export interface RefreshProgress {
   total: number;
   /** Elapsed time in milliseconds since the refresh started. */
   elapsedMs: number;
+}
+
+export interface AccountRefreshOptions {
+  accountIds?: string[];
+  /** Timeout in seconds. Default: `300` */
+  timeout?: number;
+  /** Polling interval in seconds. Default: `10` */
+  delay?: number;
+  /** Called after each poll with refresh progress. */
+  onProgress?: (progress: RefreshProgress) => void;
 }
 
 export type TransactionFilterOptions = {
@@ -1007,8 +1017,7 @@ export class MonarchMoney {
     );
   }
 
-  /** Checks whether a prior account refresh request has completed. */
-  async isAccountsRefreshComplete(accountIds?: string[]): Promise<boolean> {
+  private async _getAccountsRefreshStatus(accountIds?: string[]): Promise<RefreshStatusAccount[]> {
     const result = await this.gqlCall<{ accounts: RefreshStatusAccount[] }>(
       "ForceRefreshAccountsQuery",
       queries.GET_REFRESH_STATUS
@@ -1016,10 +1025,18 @@ export class MonarchMoney {
     if (!result.accounts) {
       throw new RequestFailedException("Unable to check refresh status");
     }
-    const list = accountIds?.length
+    const tracked = accountIds?.length
       ? result.accounts.filter((a) => accountIds.includes(a.id))
       : result.accounts;
-    return list.every((a) => !a.hasSyncInProgress);
+    if (accountIds?.some((id) => !tracked.some((account) => account.id === id))) {
+      throw new RequestFailedException("Selected account missing from refresh status");
+    }
+    return tracked;
+  }
+
+  /** Checks whether a prior account refresh request has completed. */
+  async isAccountsRefreshComplete(accountIds?: string[]): Promise<boolean> {
+    return (await this._getAccountsRefreshStatus(accountIds)).every((a) => !a.hasSyncInProgress);
   }
 
   // =====================================================================
@@ -1094,17 +1111,23 @@ export class MonarchMoney {
    * Requests an account balance/transaction refresh. Non-blocking.
    * Use `isAccountsRefreshComplete()` to poll for status.
    */
-  async requestAccountsRefresh(accountIds: string[]): Promise<boolean> {
-    const result = await this.gqlCall<ForceRefreshResponse>(
-      "Common_ForceRefreshAccountsMutation",
-      queries.FORCE_REFRESH_ACCOUNTS,
-      { input: { accountIds } }
+  async requestAccountRefresh(accountId: string): Promise<boolean> {
+    const result = await this.gqlCall<ForceRefreshAccountResponse>(
+      "Common_ForceRefreshAccountMutation",
+      queries.FORCE_REFRESH_ACCOUNT,
+      { input: { accountId } }
     );
-    if (!result.forceRefreshAccounts.success) {
+    if (!result.forceRefreshAccount.success || result.forceRefreshAccount.errors) {
       throw new RequestFailedException(
-        JSON.stringify(result.forceRefreshAccounts.errors)
+        JSON.stringify(result.forceRefreshAccount.errors)
       );
     }
+    return true;
+  }
+
+  /** Requests refreshes for selected accounts using Monarch's current per-account API. */
+  async requestAccountsRefresh(accountIds: string[]): Promise<boolean> {
+    for (const id of new Set(accountIds)) await this.requestAccountRefresh(id);
     return true;
   }
 
@@ -1123,37 +1146,21 @@ export class MonarchMoney {
    * });
    * ```
    */
-  async requestAccountsRefreshAndWait(options?: {
-    accountIds?: string[];
-    /** Timeout in seconds. Default: `300` */
-    timeout?: number;
-    /** Polling interval in seconds. Default: `10` */
-    delay?: number;
-    /** Called after each poll with refresh progress. */
-    onProgress?: (progress: RefreshProgress) => void;
-  }): Promise<boolean> {
-    const { timeout = 300, delay = 10, onProgress } = options ?? {};
-    let accountIds = options?.accountIds;
-    if (!accountIds) {
-      const data = await this.getAccounts();
-      accountIds = data.accounts.map((a) => a.id);
-    }
+  async requestAccountsRefreshAndWait(options: AccountRefreshOptions = {}): Promise<boolean> {
+    const accountIds = options.accountIds ?? (await this.getAccounts()).accounts.map((a) => a.id);
     await this.requestAccountsRefresh(accountIds);
+    return this.waitForAccountsRefresh({ ...options, accountIds });
+  }
+
+  /** Waits for an existing refresh without submitting another mutation. */
+  async waitForAccountsRefresh(options: AccountRefreshOptions = {}): Promise<boolean> {
+    const { timeout = 300, delay = 10, onProgress, accountIds } = options;
     const startTime = Date.now();
     const deadline = startTime + timeout * 1000;
     while (Date.now() < deadline) {
       await new Promise((r) => globalThis.setTimeout(r, delay * 1000));
 
-      const result = await this.gqlCall<{ accounts: RefreshStatusAccount[] }>(
-        "ForceRefreshAccountsQuery",
-        queries.GET_REFRESH_STATUS
-      );
-      if (!result.accounts) {
-        throw new RequestFailedException("Unable to check refresh status");
-      }
-      const tracked = accountIds.length
-        ? result.accounts.filter((a) => accountIds!.includes(a.id))
-        : result.accounts;
+      const tracked = await this._getAccountsRefreshStatus(accountIds);
       const completed = tracked.filter((a) => !a.hasSyncInProgress).length;
 
       onProgress?.({
